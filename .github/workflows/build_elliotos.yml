@@ -40,11 +40,23 @@ jobs:
 
       - name: Inject ElliotOS autostart
         run: |
-          mkdir -p /opt/termux-generator/overlay/usr/etc/profile.d
-          printf '%s\n' '#!/bin/bash' 'FLAG="$HOME/.elliotos_installed"' 'SCRIPT="$HOME/luascript.sh"' 'if [ ! -f "$FLAG" ] && [ -f "$SCRIPT" ]; then' '  echo "Instalando ElliotOS..."' '  bash "$SCRIPT" && touch "$FLAG"' 'fi' > /opt/termux-generator/overlay/usr/etc/profile.d/elliotos.sh
-          chmod +x /opt/termux-generator/overlay/usr/etc/profile.d/elliotos.sh
-          mkdir -p /opt/termux-generator/overlay/home
-          cp luascript.sh /opt/termux-generator/overlay/home/luascript.sh
+          mkdir -p /opt/termux-generator/plugins/elliotos
+          cat > /opt/termux-generator/plugins/elliotos/plugin.sh << 'PLUGIN'
+#!/bin/bash
+# Copia luascript.sh para o home do bootstrap e cria autostart
+cp "$GITHUB_WORKSPACE/luascript.sh" "$BOOTSTRAP_DIR/home/luascript.sh" 2>/dev/null || true
+mkdir -p "$BOOTSTRAP_DIR/usr/etc/profile.d"
+printf '%s\n' \
+  '#!/bin/bash' \
+  'FLAG="$HOME/.elliotos_installed"' \
+  'SCRIPT="$HOME/luascript.sh"' \
+  'if [ ! -f "$FLAG" ] && [ -f "$SCRIPT" ]; then' \
+  '  echo "Instalando ElliotOS..."' \
+  '  bash "$SCRIPT" && touch "$FLAG"' \
+  'fi' > "$BOOTSTRAP_DIR/usr/etc/profile.d/elliotos.sh"
+chmod +x "$BOOTSTRAP_DIR/usr/etc/profile.d/elliotos.sh"
+PLUGIN
+          chmod +x /opt/termux-generator/plugins/elliotos/plugin.sh
 
       - name: Build APK
         run: |
@@ -58,7 +70,7 @@ jobs:
             --name com.elliotos.terminal \
             --architectures ${{ github.event.inputs.architectures }} \
             --add lua54,clang,make,pkg-config,binutils \
-            --overlay /opt/termux-generator/overlay \
+            --plugin elliotos \
             2>&1 | tee /tmp/build.log
           echo "Exit: $?"
 
