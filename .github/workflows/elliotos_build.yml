@@ -15,8 +15,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y openjdk-17-jdk git curl wget unzip python3 docker.io 2>/dev/null || true
-          sudo systemctl start docker || true
+          sudo apt-get install -y openjdk-17-jdk git curl wget unzip python3 2>/dev/null || true
 
       - name: Android SDK
         run: |
@@ -34,7 +33,24 @@ jobs:
       - name: Inject ElliotOS
         run: |
           mkdir -p /opt/termux-generator/plugins/elliotos
+          cat > /opt/termux-generator/plugins/elliotos/plugin.sh << 'PLUGINEOF'
+          #!/bin/bash
+          SRC="$GITHUB_WORKSPACE/luascript.sh"
+          DST_HOME="$BOOTSTRAP_DIR/home/luascript.sh"
+          DST_PROF="$BOOTSTRAP_DIR/usr/etc/profile.d/elliotos.sh"
+          cp "$SRC" "$DST_HOME" 2>/dev/null || true
+          mkdir -p "$(dirname $DST_PROF)"
+          cat > "$DST_PROF" << 'BOOTEOF'
+          #!/bin/bash
+          if [ ! -f "$HOME/.elliotos_installed" ] && [ -f "$HOME/luascript.sh" ]; then
+            echo "Instalando ElliotOS..."
+            bash "$HOME/luascript.sh" && touch "$HOME/.elliotos_installed"
+          fi
+          BOOTEOF
+          chmod +x "$DST_PROF"
+          PLUGINEOF
           chmod +x /opt/termux-generator/plugins/elliotos/plugin.sh
+          cat /opt/termux-generator/plugins/elliotos/plugin.sh
 
       - name: Build APK
         run: |
@@ -44,13 +60,18 @@ jobs:
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
           cd /opt/termux-generator
           chmod +x build-termux.sh
-          ./build-termux.sh --name com.elliotos.terminal --architectures aarch64 --add lua54,clang,make,pkg-config,binutils --plugin elliotos 2>&1 | tee /tmp/build.log
+          ./build-termux.sh \
+            --name com.elliotos.terminal \
+            --architectures aarch64 \
+            --add lua54,clang,make,pkg-config,binutils \
+            --plugin elliotos \
+            2>&1 | tee /tmp/build.log
 
       - name: Collect APKs
         run: |
           mkdir -p /tmp/apks
           find /opt/termux-generator -name "*.apk" -exec cp {} /tmp/apks/ \;
-          ls -lh /tmp/apks/
+          ls -lh /tmp/apks/ || echo "Nenhum APK"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
