@@ -6,9 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on:
-  push:
-    branches: [main] ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
       - name: Checkout
