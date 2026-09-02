@@ -1,16 +1,22 @@
 name: Build ElliotOS APK
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       architectures:
-        description: 'Arquiteturas (aarch64, x86_64, arm, i686)'
+        description:
+  push:
+    branches: [main] 'Arquiteturas (aarch64, x86_64, arm, i686)'
         required: true
         default: 'aarch64'
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on:
+  push:
+    branches: [main] ubuntu-latest
     timeout-minutes: 120
     steps:
       - name: Checkout
