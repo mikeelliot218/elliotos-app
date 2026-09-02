@@ -12,101 +12,72 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-
     steps:
-      - name: Checkout elliotos-app
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y openjdk-17-jdk git patch curl wget unzip \
-            docker.io python3 python3-pip 2>/dev/null || true
+          sudo apt-get install -y openjdk-17-jdk git patch curl wget unzip python3 docker.io 2>/dev/null || true
           sudo systemctl start docker || true
-          sudo usermod -aG docker $USER || true
 
-      - name: Install Android SDK
+      - name: Android SDK
         run: |
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
-            -O /tmp/cmdline-tools.zip
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/ct.zip
           sudo mkdir -p /opt/android-sdk/cmdline-tools
-          sudo unzip -q /tmp/cmdline-tools.zip -d /tmp/ct
+          sudo unzip -q /tmp/ct.zip -d /tmp/ct
           sudo mv /tmp/ct/cmdline-tools /opt/android-sdk/cmdline-tools/latest
-          sudo chown -R $USER /opt/android-sdk
-          echo "export ANDROID_SDK_ROOT=/opt/android-sdk" >> $GITHUB_ENV
-          echo "export PATH=/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
-          /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk \
-            "platforms;android-35" "build-tools;35.0.1" "ndk;26.3.11579264" 2>/dev/null
-          yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk \
-            --licenses 2>/dev/null || true
+          sudo chown -R $(whoami) /opt/android-sdk
+          echo "ANDROID_SDK_ROOT=/opt/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_HOME=/opt/android-sdk" >> $GITHUB_ENV
+          echo "/opt/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk "platforms;android-35" "build-tools;35.0.1" "ndk;26.3.11579264" 2>/dev/null
+          yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk --licenses 2>/dev/null || true
 
       - name: Clone termux-generator
-        run: |
-          git clone --depth=1 https://github.com/robertkirkman/termux-generator.git /opt/termux-generator
+        run: git clone --depth=1 https://github.com/robertkirkman/termux-generator.git /opt/termux-generator
 
-      - name: Setup luascript.sh as autostart
+      - name: Inject ElliotOS autostart
         run: |
-          # Criar script de perfil que instala o ElliotOS no primeiro boot
           mkdir -p /opt/termux-generator/overlay/usr/etc/profile.d
-          cat > /opt/termux-generator/overlay/usr/etc/profile.d/elliotos-install.sh << 'EOF'
-#!/bin/bash
-FLAG="$HOME/.elliotos_installed"
-SCRIPT="$HOME/luascript.sh"
-if [ ! -f "$FLAG" ] && [ -f "$SCRIPT" ]; then
-    echo ""
-    echo "========================================"
-    echo "  ElliotOS — Instalando ambiente..."
-    echo "========================================"
-    echo ""
-    bash "$SCRIPT" && touch "$FLAG"
-fi
-EOF
-          chmod +x /opt/termux-generator/overlay/usr/etc/profile.d/elliotos-install.sh
-
-          # Copiar luascript.sh para o home padrão do bootstrap
+          printf '%s\n' '#!/bin/bash' 'FLAG="$HOME/.elliotos_installed"' 'SCRIPT="$HOME/luascript.sh"' 'if [ ! -f "$FLAG" ] && [ -f "$SCRIPT" ]; then' '  echo "Instalando ElliotOS..."' '  bash "$SCRIPT" && touch "$FLAG"' 'fi' > /opt/termux-generator/overlay/usr/etc/profile.d/elliotos.sh
+          chmod +x /opt/termux-generator/overlay/usr/etc/profile.d/elliotos.sh
           mkdir -p /opt/termux-generator/overlay/home
           cp luascript.sh /opt/termux-generator/overlay/home/luascript.sh
 
-      - name: Build ElliotOS APK
+      - name: Build APK
         run: |
           cd /opt/termux-generator
           export ANDROID_SDK_ROOT=/opt/android-sdk
           export ANDROID_HOME=/opt/android-sdk
-          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-
+          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
           chmod +x build-termux.sh
-
           ./build-termux.sh \
             --name com.elliotos.terminal \
             --architectures ${{ github.event.inputs.architectures }} \
-            --add lua54,clang,make,pkg-config,binutils,openssl \
+            --add lua54,clang,make,pkg-config,binutils \
             --overlay /opt/termux-generator/overlay \
-            2>&1 | tee /tmp/build.log || {
-              echo "--- ÚLTIMAS 100 LINHAS DO LOG ---"
-              tail -100 /tmp/build.log
-              exit 1
-            }
+            2>&1 | tee /tmp/build.log
+          echo "Exit: $?"
 
-      - name: Renomear e preparar APKs
+      - name: Collect APKs
         run: |
-          find /opt/termux-generator -name "*.apk" 2>/dev/null | head -20
           mkdir -p /tmp/elliotos-apks
-          for apk in $(find /opt/termux-generator -name "*.apk" 2>/dev/null); do
-            newname="ElliotOS-$(basename $apk | sed 's/com\.termux/ElliotOS/g')"
-            cp "$apk" "/tmp/elliotos-apks/$newname"
-            echo "APK: $newname ($(du -sh $apk | cut -f1))"
+          find /opt/termux-generator -name "*.apk" | while read f; do
+            cp "$f" "/tmp/elliotos-apks/ElliotOS-$(basename $f)"
           done
-          ls -lh /tmp/elliotos-apks/
+          ls -lh /tmp/elliotos-apks/ || echo "Nenhum APK encontrado"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: ElliotOS-APKs
-          path: /tmp/elliotos-apks/*.apk
+          path: /tmp/elliotos-apks/
           retention-days: 30
 
-      - name: Upload build log (em caso de falha)
+      - name: Upload log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
