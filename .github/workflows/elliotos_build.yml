@@ -3,14 +3,6 @@ name: Build ElliotOS APK
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      architectures:
-        description:
-  push:
-    branches: [main] 'Arquiteturas (aarch64, x86_64, arm, i686)'
-        required: true
-        default: 'aarch64'
 
 jobs:
   build:
