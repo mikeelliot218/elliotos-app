@@ -15,7 +15,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y openjdk-17-jdk git patch curl wget unzip python3 docker.io 2>/dev/null || true
+          sudo apt-get install -y openjdk-17-jdk git curl wget unzip python3 docker.io 2>/dev/null || true
           sudo systemctl start docker || true
 
       - name: Android SDK
@@ -25,64 +25,38 @@ jobs:
           sudo unzip -q /tmp/ct.zip -d /tmp/ct
           sudo mv /tmp/ct/cmdline-tools /opt/android-sdk/cmdline-tools/latest
           sudo chown -R $(whoami) /opt/android-sdk
-          echo "ANDROID_SDK_ROOT=/opt/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_HOME=/opt/android-sdk" >> $GITHUB_ENV
-          echo "/opt/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
           /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk "platforms;android-35" "build-tools;35.0.1" "ndk;26.3.11579264" 2>/dev/null
           yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk --licenses 2>/dev/null || true
 
       - name: Clone termux-generator
         run: git clone --depth=1 https://github.com/robertkirkman/termux-generator.git /opt/termux-generator
 
-      - name: Inject ElliotOS autostart
+      - name: Inject ElliotOS
         run: |
           mkdir -p /opt/termux-generator/plugins/elliotos
-          cat > /opt/termux-generator/plugins/elliotos/plugin.sh << 'PLUGIN'
-#!/bin/bash
-# Copia luascript.sh para o home do bootstrap e cria autostart
-cp "$GITHUB_WORKSPACE/luascript.sh" "$BOOTSTRAP_DIR/home/luascript.sh" 2>/dev/null || true
-mkdir -p "$BOOTSTRAP_DIR/usr/etc/profile.d"
-printf '%s\n' \
-  '#!/bin/bash' \
-  'FLAG="$HOME/.elliotos_installed"' \
-  'SCRIPT="$HOME/luascript.sh"' \
-  'if [ ! -f "$FLAG" ] && [ -f "$SCRIPT" ]; then' \
-  '  echo "Instalando ElliotOS..."' \
-  '  bash "$SCRIPT" && touch "$FLAG"' \
-  'fi' > "$BOOTSTRAP_DIR/usr/etc/profile.d/elliotos.sh"
-chmod +x "$BOOTSTRAP_DIR/usr/etc/profile.d/elliotos.sh"
-PLUGIN
           chmod +x /opt/termux-generator/plugins/elliotos/plugin.sh
 
       - name: Build APK
         run: |
-          cd /opt/termux-generator
           export ANDROID_SDK_ROOT=/opt/android-sdk
           export ANDROID_HOME=/opt/android-sdk
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
+          cd /opt/termux-generator
           chmod +x build-termux.sh
-          ./build-termux.sh \
-            --name com.elliotos.terminal \
-            --architectures ${{ github.event.inputs.architectures }} \
-            --add lua54,clang,make,pkg-config,binutils \
-            --plugin elliotos \
-            2>&1 | tee /tmp/build.log
-          echo "Exit: $?"
+          ./build-termux.sh --name com.elliotos.terminal --architectures aarch64 --add lua54,clang,make,pkg-config,binutils --plugin elliotos 2>&1 | tee /tmp/build.log
 
       - name: Collect APKs
         run: |
-          mkdir -p /tmp/elliotos-apks
-          find /opt/termux-generator -name "*.apk" | while read f; do
-            cp "$f" "/tmp/elliotos-apks/ElliotOS-$(basename $f)"
-          done
-          ls -lh /tmp/elliotos-apks/ || echo "Nenhum APK encontrado"
+          mkdir -p /tmp/apks
+          find /opt/termux-generator -name "*.apk" -exec cp {} /tmp/apks/ \;
+          ls -lh /tmp/apks/
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: ElliotOS-APKs
-          path: /tmp/elliotos-apks/
+          path: /tmp/apks/
           retention-days: 30
 
       - name: Upload log on failure
