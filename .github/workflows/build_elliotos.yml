@@ -1,0 +1,78 @@
+name: Build ElliotOS APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package name'
+        required: true
+        default: 'com.elliotos.terminal'
+      app_name:
+        description: 'App name'
+        required: true
+        default: 'ElliotOS'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install SDK components
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+
+      - name: Apply ElliotOS customizations
+        run: |
+          # Trocar package name
+          PKG="${{ github.event.inputs.package_name }}"
+          APP="${{ github.event.inputs.app_name }}"
+          
+          # Substituir em todos os arquivos relevantes
+          find . -type f \( -name "*.java" -o -name "*.kt" -o -name "*.xml" -o -name "*.gradle" -o -name "*.properties" \) | \
+            xargs sed -i "s/com\.termux/$PKG/g" 2>/dev/null || true
+          
+          # Nome do app
+          find . -name "strings.xml" | \
+            xargs sed -i "s/>Termux</>$APP</g" 2>/dev/null || true
+          
+          # Garantir que luascript.sh está nos assets
+          mkdir -p app/src/main/assets
+          [ -f app/src/main/assets/luascript.sh ] && echo "luascript.sh presente" || echo "AVISO: luascript.sh ausente"
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug \
+            -Pandroid.aapt2FromMavenOverride=$(which aapt2 2>/dev/null || true) \
+            --no-daemon \
+            --stacktrace
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          TERMUX_APP_VERSION_NAME: "17.0"
+          TERMUX_APK_VERSION_TAG: "v17.0"
+
+      - name: Find and rename APK
+        run: |
+          find . -name "*.apk" | head -5
+          APK=$(find . -name "*.apk" | head -1)
+          cp "$APK" ElliotOS.apk
+          ls -lh ElliotOS.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElliotOS-APK
+          path: ElliotOS.apk
+          retention-days: 30
