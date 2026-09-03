@@ -63,7 +63,7 @@ jobs:
           ./build-termux.sh \
             --name com.elliotos.terminal \
             --architectures aarch64 \
-            --add lua54,clang,make,pkg-config,binutils \
+            --add lua54 \
             --plugin elliotos \
             2>&1 | tee /tmp/build.log
 
