@@ -33,21 +33,20 @@ jobs:
       - name: Inject ElliotOS
         run: |
           mkdir -p /opt/termux-generator/plugins/elliotos
-          cat > /opt/termux-generator/plugins/elliotos/plugin.sh << 'PLUGINEOF'
-          #!/bin/bash
-          # Injetar no .bashrc do home do bootstrap
-          BASHRC="$BOOTSTRAP_DIR/home/.bashrc"
-          cat >> "$BASHRC" << 'BOOTEOF'
-
-# ElliotOS autoinstall
-if [ ! -f "$HOME/.elliotos_installed" ]; then
-  echo "========================================"
-  echo "  ElliotOS — Instalando..."
-  echo "========================================"
-  curl -fsSL https://raw.githubusercontent.com/mikeelliot218/ElliotOS/main/luascript.sh -o "$HOME/luascript.sh" && bash "$HOME/luascript.sh" && touch "$HOME/.elliotos_installed"
-fi
-BOOTEOF
-          PLUGINEOF
+          printf '%s\n' \
+            '#!/bin/bash' \
+            '# Injetar no .bashrc do home do bootstrap' \
+            'BASHRC="$BOOTSTRAP_DIR/home/.bashrc"' \
+            'printf '"'"'%s\n'"'"' \' \
+            '  '"'"'# ElliotOS autoinstall'"'"' \' \
+            '  '"'"'if [ ! -f "$HOME/.elliotos_installed" ]; then'"'"' \' \
+            '  '"'"'  echo "========================================"'"'"' \' \
+            '  '"'"'  echo "  ElliotOS — Instalando..."'"'"' \' \
+            '  '"'"'  echo "========================================"'"'"' \' \
+            '  '"'"'  curl -fsSL https://raw.githubusercontent.com/mikeelliot218/ElliotOS/main/luascript.sh -o "$HOME/luascript.sh" && bash "$HOME/luascript.sh" && touch "$HOME/.elliotos_installed"'"'"' \' \
+            '  '"'"'fi'"'"' \' \
+            '  >> "$BASHRC"' \
+            > /opt/termux-generator/plugins/elliotos/plugin.sh
           chmod +x /opt/termux-generator/plugins/elliotos/plugin.sh
           cat /opt/termux-generator/plugins/elliotos/plugin.sh
 
