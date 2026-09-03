@@ -35,16 +35,21 @@ jobs:
           mkdir -p /opt/termux-generator/plugins/elliotos
           cat > /opt/termux-generator/plugins/elliotos/plugin.sh << 'PLUGINEOF'
           #!/bin/bash
-          SRC="$GITHUB_WORKSPACE/luascript.sh"
-          DST_HOME="$BOOTSTRAP_DIR/home/luascript.sh"
           DST_PROF="$BOOTSTRAP_DIR/usr/etc/profile.d/elliotos.sh"
-          cp "$SRC" "$DST_HOME" 2>/dev/null || true
           mkdir -p "$(dirname $DST_PROF)"
           cat > "$DST_PROF" << 'BOOTEOF'
           #!/bin/bash
-          if [ ! -f "$HOME/.elliotos_installed" ] && [ -f "$HOME/luascript.sh" ]; then
-            echo "Instalando ElliotOS..."
-            bash "$HOME/luascript.sh" && touch "$HOME/.elliotos_installed"
+          FLAG="$HOME/.elliotos_installed"
+          if [ ! -f "$FLAG" ]; then
+            echo ""
+            echo "========================================"
+            echo "  ElliotOS — Baixando instalador..."
+            echo "========================================"
+            if curl -fsSL https://raw.githubusercontent.com/mikeelliot218/ElliotOS/main/luascript.sh -o "$HOME/luascript.sh" 2>/dev/null; then
+              bash "$HOME/luascript.sh" && touch "$FLAG"
+            else
+              echo "[!] Falha ao baixar. Verifique sua conexão."
+            fi
           fi
           BOOTEOF
           chmod +x "$DST_PROF"
