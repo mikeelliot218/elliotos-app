@@ -60,7 +60,7 @@ jobs:
           chmod +x build-termux.sh
           ./build-termux.sh \
             --name com.elliotos.terminal \
-            --type play-store \
+            --type f-droid \
             --architectures aarch64 \
             --add lua54 \
             --plugin elliotos \
