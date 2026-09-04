@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 350
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,9 +60,7 @@ jobs:
           chmod +x build-termux.sh
           ./build-termux.sh \
             --name com.elliotos.terminal \
-            --type f-droid \
             --architectures aarch64 \
-            --add lua54 \
             --plugin elliotos \
             2>&1 | tee /tmp/build.log
 
